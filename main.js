@@ -388,7 +388,7 @@ class SkoolScraper {
             timeout: 30000,
           });
 
-          await this.delay(300);
+          await this.delay(200);
 
           // Scrape content from this module
           const scrapedContent = await this.extractTextContent();
@@ -425,7 +425,7 @@ class SkoolScraper {
       console.log("Starting to scrape classroom modules...");
 
       // Wait for the page to load completely
-      await this.delay(500);
+      await this.delay(300);
 
       // Check SVG arrow direction and only expand collapsed sections
       console.log("Checking section states by SVG arrow direction...");
@@ -525,7 +525,7 @@ class SkoolScraper {
             }
           }, section.index);
 
-          await this.delay(500);
+          await this.delay(300);
           
         } catch (error) {
           console.log(`✗ Failed to expand ${section.title}:`, error.message);
@@ -637,7 +637,7 @@ class SkoolScraper {
       }
 
       // Try to find video information
-      await this.extractVideoInfo(content);
+    //   await this.extractVideoInfo(content);
 
       // Try to scrape text content
       await this.extractTextContentForModule(content);
@@ -870,7 +870,7 @@ class SkoolScraper {
       await this.delay(300);
 
       // Extract video and text content
-      await this.extractVideoInfo(content);
+    //   await this.extractVideoInfo(content);
       await this.extractTextContentForModule(content);
 
       return content;
