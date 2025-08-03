@@ -1,4 +1,4 @@
-const Apify = require('apify');
+const { Actor } = require('apify');
 const XLSX = require('xlsx');
 
 class SkoolScraper {
@@ -13,7 +13,7 @@ class SkoolScraper {
   }
 
   async init() {
-    this.browser = await Apify.launchPuppeteer({
+    this.browser = await Actor.launchPuppeteer({
       headless: true,
       defaultViewport: null,
       args: ["--no-sandbox", "--disable-setuid-sandbox"],
@@ -854,8 +854,8 @@ class SkoolScraper {
   }
 }
 
-Apify.main(async () => {
-  const input = await Apify.getInput();
+Actor.main(async () => {
+  const input = await Actor.getInput();
   
   // Validate input
   if (!input.email || !input.password || !input.classroomUrl) {
@@ -921,12 +921,12 @@ Apify.main(async () => {
     }
 
     // Save results to dataset
-    await Apify.pushData(result);
+    await Actor.pushData(result);
 
     // Also save individual items for easier processing
     if (result.data && Array.isArray(result.data)) {
       for (const item of result.data) {
-        await Apify.pushData(item);
+        await Actor.pushData(item);
       }
     }
 
