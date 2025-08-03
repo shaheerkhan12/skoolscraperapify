@@ -425,7 +425,7 @@ class SkoolScraper {
       console.log("Starting to scrape classroom modules...");
 
       // Wait for the page to load completely
-      await this.delay(1500);
+      await this.delay(500);
 
       // Check SVG arrow direction and only expand collapsed sections
       console.log("Checking section states by SVG arrow direction...");
@@ -582,7 +582,7 @@ class SkoolScraper {
             timeout: 30000,
           });
 
-          await this.delay(500);
+          await this.delay(200);
 
           // Scrape content from this module
           const moduleContent = await this.scrapeTabContent(module.text);
@@ -867,7 +867,7 @@ class SkoolScraper {
       };
 
       // Wait for content to load
-      await this.delay(400);
+      await this.delay(300);
 
       // Extract video and text content
       await this.extractVideoInfo(content);
@@ -1010,9 +1010,9 @@ Actor.main(async () => {
   });
 
   // Set up periodic state saving
-  const saveInterval = setInterval(async () => {
-    await scraper.saveState();
-  }, 15000); // Save every 15 seconds
+//   const saveInterval = setInterval(async () => {
+//     await scraper.saveState();
+//   }, 15000); // Save every 15 seconds
 
   try {
     await scraper.init();
