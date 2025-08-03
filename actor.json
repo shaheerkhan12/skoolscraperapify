@@ -1,0 +1,27 @@
+{
+  "actorSpecification": 1,
+  "name": "skool-scraper",
+  "title": "Skool.com Classroom Scraper",
+  "description": "Scrapes content from Skool.com classrooms including modules, videos, and text content. Supports both enhanced and regular scraping methods.",
+  "version": "1.0",
+  "meta": {
+    "templateId": "node_puppeteer"
+  },
+  "input": "./INPUT_SCHEMA.json",
+  "dockerfile": "./Dockerfile",
+  "readme": "./README.md",
+  "categories": ["EDUCATION"],
+  "defaultRunOptions": {
+    "build": "latest",
+    "timeoutSecs": 3600,
+    "memoryMbytes": 4096
+  },
+  "example": {
+    "email": "Khanshaheer076@gmail.com",
+    "password": "your-password",
+    "classroomUrl": "https://www.skool.com/your-classroom/classroom/...",
+    "useEnhancedScraping": true,
+    "maxConcurrency": 1,
+    "delayBetweenRequests": 2000
+  }
+}

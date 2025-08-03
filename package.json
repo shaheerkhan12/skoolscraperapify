@@ -1,0 +1,30 @@
+{
+  "name": "skool-scraper",
+  "version": "1.0.0",
+  "description": "Apify actor for scraping Skool.com classroom content",
+  "main": "main.js",
+  "scripts": {
+    "start": "node main.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "apify": "^3.1.10",
+    "puppeteer": "^24.15.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.1.0"
+  },
+  "keywords": [
+     "apify",
+    "scraper",
+    "skool",
+    "education",
+    "puppeteer"
+  ],
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "author": "Shaheer khan",
+  "license": "MIT"
+}

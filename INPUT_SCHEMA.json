@@ -1,0 +1,51 @@
+{
+  "title": "Skool Scraper Input Schema",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "email": {
+      "title": "Email",
+      "type": "string",
+      "description": "Your Skool.com email address",
+      "editor": "textfield",
+      "example": "khanshaheer076@gmail.com"
+    },
+    "password": {
+      "title": "Password", 
+      "type": "string",
+      "description": "Your Skool.com password",
+      "editor": "textfield",
+      "isSecret": true
+    },
+    "classroomUrl": {
+      "title": "Classroom URL",
+      "type": "string", 
+      "description": "The full URL of the Skool classroom you want to scrape",
+      "editor": "textfield",
+      "example": "https://www.skool.com/your-classroom/classroom/..."
+    },
+    "useEnhancedScraping": {
+      "title": "Use Enhanced Scraping",
+      "type": "boolean",
+      "description": "Use enhanced scraping method that extracts course structure from page data (recommended)",
+      "default": true
+    },
+    "maxConcurrency": {
+      "title": "Max Concurrency",
+      "type": "integer",
+      "description": "Maximum number of concurrent requests (1-10)",
+      "minimum": 1,
+      "maximum": 10,
+      "default": 1
+    },
+    "delayBetweenRequests": {
+      "title": "Delay Between Requests (ms)",
+      "type": "integer", 
+      "description": "Delay in milliseconds between requests to avoid rate limiting",
+      "minimum": 1000,
+      "maximum": 10000,
+      "default": 2000
+    }
+  },
+  "required": ["email", "password", "classroomUrl"]
+}
