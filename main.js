@@ -1,5 +1,4 @@
 const { Actor } = require('apify');
-// const { PuppeteerCrawler } = require('crawlee');
 const puppeteer = require('puppeteer');
 const XLSX = require('xlsx');
 
@@ -8,13 +7,85 @@ class SkoolScraper {
     this.browser = null;
     this.page = null;
     this.data = [];
+    this.shouldMigrate = false;
+    this.currentState = {
+      step: 'initializing',
+      processedModules: 0,
+      totalModules: 0,
+      currentModule: null,
+      scrapedData: []
+    };
   }
 
   delay(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
+  // Save current progress state
+  async saveState() {
+    try {
+      await Actor.setValue('SCRAPER_STATE', {
+        ...this.currentState,
+        scrapedData: this.data,
+        timestamp: Date.now()
+      });
+      console.log('State saved successfully');
+    } catch (error) {
+      console.error('Failed to save state:', error.message);
+    }
+  }
+
+  // Load previous progress state
+  async loadState() {
+    try {
+      const savedState = await Actor.getValue('SCRAPER_STATE');
+      if (savedState && savedState.timestamp) {
+        // Only restore if saved within last hour (3600000ms)
+        const hourAgo = Date.now() - 3600000;
+        if (savedState.timestamp > hourAgo) {
+          this.currentState = { ...this.currentState, ...savedState };
+          this.data = savedState.scrapedData || [];
+          console.log(`Restored state: ${this.currentState.step}, processed ${this.currentState.processedModules} modules`);
+          return true;
+        }
+      }
+      return false;
+    } catch (error) {
+      console.error('Failed to load state:', error.message);
+      return false;
+    }
+  }
+
+  // Check if migration is needed
+  checkMigration() {
+    return this.shouldMigrate;
+  }
+
+  // Handle migration preparation
+  async prepareMigration() {
+    console.log('Preparing for migration...');
+    this.shouldMigrate = true;
+    
+    // Save current progress
+    await this.saveState();
+    
+    // Close browser gracefully
+    if (this.browser) {
+      await this.browser.close();
+      this.browser = null;
+    }
+    
+    console.log('Migration preparation completed');
+  }
+
   async init() {
+    // Check if we're resuming from a migration
+    const resumed = await this.loadState();
+    if (resumed && this.currentState.step === 'completed') {
+      console.log('Scraping already completed, skipping...');
+      return;
+    }
+
     this.browser = await puppeteer.launch({
       headless: true,
       defaultViewport: null,
@@ -29,15 +100,33 @@ class SkoolScraper {
 
     // Set viewport
     await this.page.setViewport({ width: 1366, height: 768 });
+    
+    if (!resumed) {
+      this.currentState.step = 'initialized';
+    }
   }
 
   async login(email, password) {
     try {
+      // Skip if already logged in after migration
+      if (this.currentState.step === 'logged_in' || 
+          this.currentState.step === 'scraping' || 
+          this.currentState.step === 'completed') {
+        console.log('Skipping login - already authenticated');
+        return;
+      }
+
       console.log("Navigating to login page...");
       await this.page.goto("https://www.skool.com/login", {
         waitUntil: "networkidle2",
         timeout: 30000,
       });
+
+      // Check for migration during navigation
+      if (this.checkMigration()) {
+        await this.prepareMigration();
+        throw new Error('Migration in progress');
+      }
 
       // Wait for login form
       await this.page.waitForSelector('input[type="email"]', {
@@ -55,9 +144,11 @@ class SkoolScraper {
       await this.page.waitForNavigation({ waitUntil: "networkidle2" });
 
       console.log("Login successful!");
+      this.currentState.step = 'logged_in';
+      await this.saveState();
 
       // Wait a bit for any redirects
-      await this.delay(2000);
+      await this.delay(500);
     } catch (error) {
       console.error("Login failed:", error.message);
       throw error;
@@ -73,7 +164,7 @@ class SkoolScraper {
       });
 
       // Wait for classroom content to load
-      await this.delay(3000);
+      await this.delay(1000);
     } catch (error) {
       console.error("Navigation to classroom failed:", error.message);
       throw error;
@@ -158,7 +249,7 @@ class SkoolScraper {
       console.log(`Found ${courseStructure.sections.length} sections in course structure`);
 
       // Wait for the page to load completely
-      await this.delay(5000);
+      await this.delay(2000);
 
       // Check SVG arrow direction and only expand collapsed sections
       console.log("Checking section states by SVG arrow direction...");
@@ -246,7 +337,7 @@ class SkoolScraper {
             }
           }, section.index);
 
-          await this.delay(1200);
+          await this.delay(500);
           
         } catch (error) {
           console.log(`✗ Failed to expand ${section.title}:`, error.message);
@@ -254,7 +345,7 @@ class SkoolScraper {
       }
 
       // Final wait for all animations to complete
-      await this.delay(2000);
+      await this.delay(1000);
 
       // Now find all module links after expansion
       const moduleLinks = await this.page.evaluate(() => {
@@ -275,10 +366,21 @@ class SkoolScraper {
       console.log(`Found ${uniqueModuleLinks.length} unique modules to scrape`);
 
       // Navigate through each module and scrape content
-      for (let i = 0; i < uniqueModuleLinks.length; i++) {
+      for (let i = this.currentState.processedModules; i < uniqueModuleLinks.length; i++) {
         try {
+          // Check for migration before processing each module
+          if (this.checkMigration()) {
+            console.log('Migration requested, saving progress...');
+            this.currentState.processedModules = i;
+            await this.prepareMigration();
+            throw new Error('Migration in progress');
+          }
+
           const module = uniqueModuleLinks[i];
           console.log(`Processing module ${i + 1}/${uniqueModuleLinks.length}: ${module.text}`);
+          
+          this.currentState.currentModule = module.text;
+          this.currentState.totalModules = uniqueModuleLinks.length;
 
           // Navigate to the module
           await this.page.goto(module.href, {
@@ -286,16 +388,28 @@ class SkoolScraper {
             timeout: 30000,
           });
 
-          await this.delay(3000);
+          await this.delay(1000);
 
           // Scrape content from this module
           const scrapedContent = await this.extractTextContent();
 
           // Find matching module in course structure and add content
           this.matchAndAddContent(courseStructure, module.text, scrapedContent);
+          
+          // Update progress
+          this.currentState.processedModules = i + 1;
+          
+          // Save state every 3 modules
+          if ((i + 1) % 3 === 0) {
+            await this.saveState();
+          }
+          
         } catch (error) {
+          if (error.message === 'Migration in progress') {
+            throw error; // Re-throw migration errors
+          }
           console.error(`Error processing module ${i + 1}:`, error.message);
-          // Continue with next module
+          // Continue with next module for other errors
         }
       }
 
@@ -411,7 +525,7 @@ class SkoolScraper {
             }
           }, section.index);
 
-          await this.delay(1200);
+          await this.delay(500);
           
         } catch (error) {
           console.log(`✗ Failed to expand ${section.title}:`, error.message);
@@ -419,7 +533,7 @@ class SkoolScraper {
       }
 
       // Final wait for all animations to complete
-      await this.delay(2000);
+      await this.delay(1000);
 
       // Now find all module links from all expanded sections
       const moduleLinks = await this.page.evaluate(() => {
@@ -446,10 +560,21 @@ class SkoolScraper {
       }
 
       // Navigate through each unique module
-      for (let i = 0; i < uniqueModuleLinks.length; i++) {
+      for (let i = this.currentState.processedModules; i < uniqueModuleLinks.length; i++) {
         try {
+          // Check for migration before processing each module
+          if (this.checkMigration()) {
+            console.log('Migration requested, saving progress...');
+            this.currentState.processedModules = i;
+            await this.prepareMigration();
+            throw new Error('Migration in progress');
+          }
+
           const module = uniqueModuleLinks[i];
           console.log(`Processing module ${i + 1}/${uniqueModuleLinks.length}: ${module.text}`);
+          
+          this.currentState.currentModule = module.text;
+          this.currentState.totalModules = uniqueModuleLinks.length;
 
           // Navigate to the module
           await this.page.goto(module.href, {
@@ -457,14 +582,26 @@ class SkoolScraper {
             timeout: 30000,
           });
 
-          await this.delay(3000);
+          await this.delay(1000);
 
           // Scrape content from this module
           const moduleContent = await this.scrapeTabContent(module.text);
           this.data.push(moduleContent);
+          
+          // Update progress
+          this.currentState.processedModules = i + 1;
+          
+          // Save state every 3 modules
+          if ((i + 1) % 3 === 0) {
+            await this.saveState();
+          }
+          
         } catch (error) {
+          if (error.message === 'Migration in progress') {
+            throw error; // Re-throw migration errors
+          }
           console.error(`Error processing module ${i + 1}:`, error.message);
-          // Continue with next module
+          // Continue with next module for other errors
         }
       }
     } catch (error) {
@@ -730,7 +867,7 @@ class SkoolScraper {
       };
 
       // Wait for content to load
-      await this.delay(2000);
+      await this.delay(800);
 
       // Extract video and text content
       await this.extractVideoInfo(content);
@@ -866,14 +1003,35 @@ Actor.main(async () => {
 
   const scraper = new SkoolScraper();
 
+  // Set up migration handler
+  Actor.on('migrating', async () => {
+    console.log('Received migration event');
+    await scraper.prepareMigration();
+  });
+
+  // Set up periodic state saving
+  const saveInterval = setInterval(async () => {
+    await scraper.saveState();
+  }, 15000); // Save every 15 seconds
+
   try {
     await scraper.init();
 
-    // Login with provided credentials
+    // Skip if already completed
+    if (scraper.currentState.step === 'completed') {
+      console.log('Scraping already completed');
+      return;
+    }
+
+    // Login with provided credentials (skip if already logged in)
     await scraper.login(input.email, input.password);
 
-    // Navigate to the specific classroom
-    await scraper.navigateToClassroom(input.classroomUrl);
+    // Navigate to the specific classroom (skip if already navigated)
+    if (scraper.currentState.step !== 'scraping') {
+      await scraper.navigateToClassroom(input.classroomUrl);
+      scraper.currentState.step = 'scraping';
+      await scraper.saveState();
+    }
 
     // Choose scraping method based on input
     let result;
@@ -922,6 +1080,10 @@ Actor.main(async () => {
       };
     }
 
+    // Mark as completed
+    scraper.currentState.step = 'completed';
+    await scraper.saveState();
+
     // Save results to dataset
     await Actor.pushData(result);
 
@@ -949,9 +1111,15 @@ Actor.main(async () => {
     }
 
   } catch (error) {
+    if (error.message === 'Migration in progress') {
+      console.log('Actor is migrating. The scraping will resume on the new server.');
+      // Exit gracefully
+      return;
+    }
     console.error('Scraping failed:', error.message);
     throw error;
   } finally {
+    clearInterval(saveInterval);
     await scraper.close();
   }
 });
