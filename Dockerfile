@@ -5,7 +5,7 @@ FROM apify/actor-node-puppeteer-chrome:18
 COPY package*.json ./
 
 # Install NPM dependencies
-RUN npm ci --only=production
+RUN npm i --only=production
 
 # Copy source code
 COPY . ./
