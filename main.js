@@ -249,7 +249,7 @@ class SkoolScraper {
       console.log(`Found ${courseStructure.sections.length} sections in course structure`);
 
       // Wait for the page to load completely
-      await this.delay(2000);
+      await this.delay(1000);
 
       // Check SVG arrow direction and only expand collapsed sections
       console.log("Checking section states by SVG arrow direction...");
@@ -345,7 +345,7 @@ class SkoolScraper {
       }
 
       // Final wait for all animations to complete
-      await this.delay(1000);
+      await this.delay(500);
 
       // Now find all module links after expansion
       const moduleLinks = await this.page.evaluate(() => {
@@ -388,7 +388,7 @@ class SkoolScraper {
             timeout: 30000,
           });
 
-          await this.delay(1000);
+          await this.delay(500);
 
           // Scrape content from this module
           const scrapedContent = await this.extractTextContent();
@@ -425,7 +425,7 @@ class SkoolScraper {
       console.log("Starting to scrape classroom modules...");
 
       // Wait for the page to load completely
-      await this.delay(5000);
+      await this.delay(3000);
 
       // Check SVG arrow direction and only expand collapsed sections
       console.log("Checking section states by SVG arrow direction...");
@@ -533,7 +533,7 @@ class SkoolScraper {
       }
 
       // Final wait for all animations to complete
-      await this.delay(1000);
+      await this.delay(500);
 
       // Now find all module links from all expanded sections
       const moduleLinks = await this.page.evaluate(() => {
@@ -582,7 +582,7 @@ class SkoolScraper {
             timeout: 30000,
           });
 
-          await this.delay(1000);
+          await this.delay(500);
 
           // Scrape content from this module
           const moduleContent = await this.scrapeTabContent(module.text);
