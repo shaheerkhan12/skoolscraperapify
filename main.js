@@ -1,4 +1,6 @@
 const { Actor } = require('apify');
+// const { PuppeteerCrawler } = require('crawlee');
+const puppeteer = require('puppeteer');
 const XLSX = require('xlsx');
 
 class SkoolScraper {
@@ -13,10 +15,10 @@ class SkoolScraper {
   }
 
   async init() {
-    this.browser = await Actor.launchPuppeteer({
+    this.browser = await puppeteer.launch({
       headless: true,
       defaultViewport: null,
-      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
     });
     this.page = await this.browser.newPage();
 
