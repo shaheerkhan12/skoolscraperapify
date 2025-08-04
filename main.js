@@ -320,15 +320,15 @@ class SkoolScraper {
             timeout: 8000,
           });
 
-          // Quick content check - if no content found quickly, skip waiting
-          const hasContent = await this.quickContentCheck();
+          // // Quick content check - if no content found quickly, skip waiting
+          // const hasContent = await this.quickContentCheck();
           
-          if (hasContent) {
-            // Give a bit more time for content to fully load
-            await this.delay(5000);
-          } else {
-            console.log(`⚠ No content detected for ${module.title}, skipping extended wait`);
-          }
+          // if (hasContent) {
+          //   // Give a bit more time for content to fully load
+          //   await this.delay(5000);
+          // } else {
+          //   console.log(`⚠ No content detected for ${module.title}, skipping extended wait`);
+          // }
 
           // Extract content from this module
           const scrapedContent = await this.extractTextContent();
