@@ -291,6 +291,8 @@ class SkoolScraper {
 
       // Process each module directly using its ID
       for (let i = this.currentState.processedModules; i < allModules.length; i++) {
+        const module = allModules[i]; // Define module outside try block
+        
         try {
           // Check for migration before processing each module
           if (this.checkMigration()) {
@@ -300,7 +302,6 @@ class SkoolScraper {
             throw new Error('Migration in progress');
           }
 
-          const module = allModules[i];
           console.log(`Processing module ${i + 1}/${allModules.length}: ${module.title} (ID: ${module.Id})`);
           
           this.currentState.currentModule = module.title;
@@ -309,6 +310,7 @@ class SkoolScraper {
           const moduleUrl = this.generateModuleUrl(module.Id);
           if (!moduleUrl) {
             console.log(`⚠ Could not generate URL for module: ${module.title}`);
+            courseStructure.sections[module.sectionIndex].childrenCourses[module.moduleIndex].content = "No URL generated";
             continue;
           }
 
@@ -349,14 +351,26 @@ class SkoolScraper {
             throw error; // Re-throw migration errors
           }
           
-          // Handle timeout specifically
-          if (error.name === 'TimeoutError' || error.message.includes('timeout')) {
-            console.log(`⏱ Timeout for module: ${module.title}, marking as no content`);
-            courseStructure.sections[module.sectionIndex].childrenCourses[module.moduleIndex].content = "No content found - page timeout";
+          // Ensure we have valid indices before trying to access courseStructure
+          if (courseStructure.sections && 
+              courseStructure.sections[module.sectionIndex] && 
+              courseStructure.sections[module.sectionIndex].childrenCourses &&
+              courseStructure.sections[module.sectionIndex].childrenCourses[module.moduleIndex]) {
+            
+            // Handle timeout specifically
+            if (error.name === 'TimeoutError' || error.message.includes('timeout')) {
+              console.log(`⏱ Timeout for module: ${module.title}, marking as no content`);
+              courseStructure.sections[module.sectionIndex].childrenCourses[module.moduleIndex].content = "No content found - page timeout";
+            } else {
+              console.error(`Error processing module ${i + 1} (${module.title}):`, error.message);
+              courseStructure.sections[module.sectionIndex].childrenCourses[module.moduleIndex].content = `Error scraping content: ${error.message}`;
+            }
           } else {
-            console.error(`Error processing module ${i + 1}:`, error.message);
-            courseStructure.sections[module.sectionIndex].childrenCourses[module.moduleIndex].content = `Error scraping content: ${error.message}`;
+            console.error(`Error processing module ${i + 1} (${module.title}) - invalid structure indices:`, error.message);
           }
+          
+          // Update progress even on error to avoid getting stuck
+          this.currentState.processedModules = i + 1;
         }
       }
 
