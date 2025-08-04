@@ -385,29 +385,55 @@ class SkoolScraper {
   async quickContentCheck() {
     try {
       const hasContent = await this.page.evaluate(() => {
-        // Check for main content containers
+        // Check for main content containers - be more lenient
         const contentSelectors = [
           ".tiptap.ProseMirror.skool-editor2",
-          ".styled__EditorContentWrapper-sc-1cnx5by-2",
+          ".styled__EditorContentWrapper-sc-1cnx5by-2", 
           ".styled__RichTextEditorWrapper-sc-1cnx5by-0",
-          ".styled__ModuleBody-sc-cgnv0g-3"
+          ".styled__ModuleBody-sc-cgnv0g-3",
+          '[data-testid*="content"]',
+          ".content",
+          "main",
+          ".main-content",
+          // Also check for any paragraph or div with substantial text
+          "p",
+          "div"
         ];
 
-        for (let selector of contentSelectors) {
+        // First check specific content containers
+        for (let selector of contentSelectors.slice(0, 7)) {
           const element = document.querySelector(selector);
           if (element) {
             const textContent = element.innerText?.trim();
-            if (textContent && textContent.length > 20) {
+            if (textContent && textContent.length > 10) { // Reduced from 20 to 10
               return true;
             }
           }
         }
+
+        // Fallback: check for any meaningful text content on the page
+        const allText = document.body.innerText?.trim() || '';
+        // Remove common navigation/UI text and check if there's substantial content
+        const cleanText = allText.replace(/\s+/g, ' ').trim();
+        
+        // If there's more than 50 characters of text, assume there's content
+        if (cleanText.length > 50) {
+          return true;
+        }
+
+        // Final check: look for any images or videos which might indicate content
+        const hasMedia = document.querySelector('img, video, iframe');
+        if (hasMedia) {
+          return true;
+        }
+
         return false;
       });
 
       return hasContent;
     } catch (error) {
       // If there's an error checking, assume there might be content
+      console.log('Error in quickContentCheck, assuming content exists:', error.message);
       return true;
     }
   }
