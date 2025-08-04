@@ -318,7 +318,7 @@ class SkoolScraper {
           // Navigate directly to the module with shorter timeout
           await this.page.goto(moduleUrl, {
             waitUntil: "networkidle2",
-            timeout: 8000,
+            timeout: 30000,
           });
 
           // Quick content check - if no content found quickly, skip waiting
@@ -425,7 +425,7 @@ class SkoolScraper {
     try {
       // Get the raw HTML content from the TipTap editor
       const htmlContent = await this.page.evaluate(() => {
-        const editorEl = document.querySelector(".tiptap.ProseMirror.skool-editor2");
+        const editorEl = document.querySelector(".styled__EditorContentWrapper-sc-1cnx5by-2");
         
         if (editorEl) {
           return editorEl.innerHTML;
