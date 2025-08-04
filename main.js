@@ -318,7 +318,7 @@ class SkoolScraper {
           // Navigate directly to the module with shorter timeout
           await this.page.goto(moduleUrl, {
             waitUntil: "networkidle2",
-            timeout: 30000,
+            timeout: 8000,
           });
 
           // Quick content check - if no content found quickly, skip waiting
@@ -326,7 +326,7 @@ class SkoolScraper {
           
           if (hasContent) {
             // Give a bit more time for content to fully load
-            await this.delay(500);
+            await this.delay(300);
           } else {
             console.log(`⚠ No content detected for ${module.title}, skipping extended wait`);
           }
@@ -350,6 +350,14 @@ class SkoolScraper {
         } catch (error) {
           if (error.message === 'Migration in progress') {
             throw error; // Re-throw migration errors
+          }
+          
+          // Check for migration-related errors (frame detached usually means migration)
+          if (error.message.includes('detached') || error.message.includes('session') || this.checkMigration()) {
+            console.log('Migration-related error detected, saving progress...');
+            this.currentState.processedModules = i;
+            await this.prepareMigration();
+            throw new Error('Migration in progress');
           }
           
           // Ensure we have valid indices before trying to access courseStructure
@@ -417,7 +425,7 @@ class SkoolScraper {
     try {
       // Get the raw HTML content from the TipTap editor
       const htmlContent = await this.page.evaluate(() => {
-        const editorEl = document.querySelector(".styled__EditorContentWrapper-sc-1cnx5by-2");
+        const editorEl = document.querySelector(".tiptap.ProseMirror.skool-editor2");
         
         if (editorEl) {
           return editorEl.innerHTML;
@@ -447,7 +455,7 @@ class SkoolScraper {
       if (!htmlContent) {
         return "No content found";
       }
-      
+
       // Use cheerio to parse HTML and extract clean text
       const $ = cheerio.load(htmlContent);
       
@@ -529,11 +537,7 @@ class SkoolScraper {
 
 Actor.main(async () => {
   const input = await Actor.getInput();
-  // input ={
-  //   email:"Ohb@mail.com",
-  //   password:"riskec-buGpok-fonme0",
-  //   classroomUrl:"https://www.skool.com/7-figure-accelerator-by-philip-9912/classroom/0b296296?md=6f6efb25101f4066be31f70ac06c9e90"
-  // }
+  
   // Validate input
   if (!input.email || !input.password || !input.classroomUrl) {
     throw new Error('Missing required input parameters: email, password, and classroomUrl');
