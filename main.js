@@ -320,15 +320,15 @@ class SkoolScraper {
             timeout: 8000,
           });
 
-          // // Quick content check - if no content found quickly, skip waiting
-          // const hasContent = await this.quickContentCheck();
+          // Quick content check - if no content found quickly, skip waiting
+          const hasContent = await this.quickContentCheck();
           
-          // if (hasContent) {
-          //   // Give a bit more time for content to fully load
-          //   await this.delay(5000);
-          // } else {
-          //   console.log(`⚠ No content detected for ${module.title}, skipping extended wait`);
-          // }
+          if (hasContent) {
+            // Give a bit more time for content to fully load
+            await this.delay(300);
+          } else {
+            console.log(`⚠ No content detected for ${module.title}, skipping extended wait`);
+          }
 
           // Extract content from this module
           const scrapedContent = await this.extractTextContent();
@@ -385,47 +385,57 @@ class SkoolScraper {
   async quickContentCheck() {
     try {
       const hasContent = await this.page.evaluate(() => {
-        // Check for main content containers - be more lenient
+        // First, specifically check the TipTap editor
+        const editorEl = document.querySelector(".tiptap.ProseMirror.skool-editor2");
+        
+        if (editorEl) {
+          // Get all paragraphs and check for meaningful content
+          const paragraphs = editorEl.querySelectorAll('p');
+          let meaningfulTextFound = false;
+          
+          for (let p of paragraphs) {
+            const text = p.innerText?.trim();
+            // Skip paragraphs that are empty or only contain line breaks
+            if (text && text.length > 3 && !text.match(/^\s*$/)) {
+              meaningfulTextFound = true;
+              break;
+            }
+          }
+          
+          if (meaningfulTextFound) {
+            return true;
+          }
+          
+          // Also check for images or other media content
+          const hasImages = editorEl.querySelector('img');
+          const hasLinks = editorEl.querySelector('a');
+          if (hasImages || hasLinks) {
+            return true;
+          }
+          
+          // Fallback: check total text content excluding line breaks
+          const totalText = editorEl.innerText?.replace(/\s+/g, ' ').trim();
+          if (totalText && totalText.length > 10) {
+            return true;
+          }
+        }
+
+        // Fallback to other content containers
         const contentSelectors = [
-          ".tiptap.ProseMirror.skool-editor2",
           ".styled__EditorContentWrapper-sc-1cnx5by-2", 
           ".styled__RichTextEditorWrapper-sc-1cnx5by-0",
-          ".styled__ModuleBody-sc-cgnv0g-3",
-          '[data-testid*="content"]',
-          ".content",
-          "main",
-          ".main-content",
-          // Also check for any paragraph or div with substantial text
-          "p",
-          "div"
+          ".styled__ModuleBody-sc-cgnv0g-3"
         ];
 
-        // First check specific content containers
-        for (let selector of contentSelectors.slice(0, 7)) {
+        for (let selector of contentSelectors) {
           const element = document.querySelector(selector);
           if (element) {
-            const textContent = element.innerText?.trim();
-            if (textContent && textContent.length > 10) { // Reduced from 20 to 10
+            const textContent = element.innerText?.replace(/\s+/g, ' ').trim();
+            if (textContent && textContent.length > 10) {
               return true;
             }
           }
         }
-
-        // Fallback: check for any meaningful text content on the page
-        const allText = document.body.innerText?.trim() || '';
-        // Remove common navigation/UI text and check if there's substantial content
-        const cleanText = allText.replace(/\s+/g, ' ').trim();
-        
-        // If there's more than 50 characters of text, assume there's content
-        if (cleanText.length > 50) {
-          return true;
-        }
-
-        // // Final check: look for any images or videos which might indicate content
-        // const hasMedia = document.querySelector('img, video, iframe');
-        // if (hasMedia) {
-        //   return true;
-        // }
 
         return false;
       });
@@ -443,30 +453,93 @@ class SkoolScraper {
     try {
       // Look for the rich text editor content first
       let extractedContent = await this.page.evaluate(() => {
-        const editorEl = document.querySelector(
-          ".tiptap.ProseMirror.skool-editor2"
-        );
+        const editorEl = document.querySelector(".tiptap.ProseMirror.skool-editor2");
 
-        function extractContentFromElement(element) {
+        function extractContentFromTipTap(element) {
           if (!element) return null;
 
-          // Get clean text content
-          const clone = element.cloneNode(true);
-          const scriptsAndStyles = clone.querySelectorAll("script, style, svg");
-          scriptsAndStyles.forEach((el) => el.remove());
+          const results = {
+            paragraphs: [],
+            images: [],
+            links: [],
+            textContent: ""
+          };
 
-          return clone.innerText.trim();
+          // Extract paragraphs with meaningful content
+          const paragraphs = element.querySelectorAll('p');
+          paragraphs.forEach(p => {
+            const text = p.innerText?.trim();
+            // Skip empty paragraphs and those with only line breaks
+            if (text && text.length > 0 && !text.match(/^\s*$/) && !text.match(/^[\r\n\s]*$/)) {
+              results.paragraphs.push(text);
+            }
+          });
+
+          // Extract images
+          const images = element.querySelectorAll('img');
+          images.forEach(img => {
+            results.images.push({
+              src: img.src || img.getAttribute('originalsrc'),
+              alt: img.alt,
+              title: img.title,
+              id: img.id
+            });
+          });
+
+          // Extract links
+          const links = element.querySelectorAll('a');
+          links.forEach(link => {
+            const text = link.innerText?.trim();
+            if (text && link.href) {
+              results.links.push({
+                text: text,
+                href: link.href,
+                title: link.title
+              });
+            }
+          });
+
+          // Create clean text content
+          if (results.paragraphs.length > 0) {
+            results.textContent = results.paragraphs.join('\n\n');
+          } else {
+            // Fallback: get all text and clean it
+            const clone = element.cloneNode(true);
+            const scriptsAndStyles = clone.querySelectorAll("script, style, svg");
+            scriptsAndStyles.forEach((el) => el.remove());
+            
+            // Remove ProseMirror trailing breaks which are just visual
+            const trailingBreaks = clone.querySelectorAll('br.ProseMirror-trailingBreak');
+            trailingBreaks.forEach(br => br.remove());
+            
+            results.textContent = clone.innerText?.replace(/\s+/g, ' ').trim() || '';
+          }
+
+          // Add image information to text content
+          if (results.images.length > 0) {
+            const imageDescriptions = results.images.map(img => 
+              `[Image: ${img.alt || img.title || 'Untitled'} - ${img.src}]`
+            ).join('\n');
+            
+            if (results.textContent) {
+              results.textContent = results.textContent + '\n\n' + imageDescriptions;
+            } else {
+              results.textContent = imageDescriptions;
+            }
+          }
+
+          return results.textContent;
         }
 
         if (editorEl) {
-          return extractContentFromElement(editorEl);
+          return extractContentFromTipTap(editorEl);
         }
 
         return null;
       });
 
       // If no editor content found, try fallback selectors
-      if (!extractedContent) {
+      if (!extractedContent || extractedContent.trim().length === 0) {
         extractedContent = await this.page.evaluate(() => {
           const contentSelectors = [
             ".styled__EditorContentWrapper-sc-1cnx5by-2",
@@ -482,11 +555,10 @@ class SkoolScraper {
             const element = document.querySelector(selector);
             if (element) {
               const clone = element.cloneNode(true);
-              const scriptsAndStyles =
-                clone.querySelectorAll("script, style, svg");
+              const scriptsAndStyles = clone.querySelectorAll("script, style, svg");
               scriptsAndStyles.forEach((el) => el.remove());
-              const textContent = clone.innerText.trim();
-
+              
+              const textContent = clone.innerText?.replace(/\s+/g, ' ').trim();
               if (textContent && textContent.length > 10) {
                 return textContent;
               }
