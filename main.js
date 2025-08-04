@@ -1,6 +1,7 @@
 const { Actor } = require('apify');
 const puppeteer = require('puppeteer');
 const XLSX = require('xlsx');
+const cheerio = require('cheerio');
 
 class SkoolScraper {
   constructor() {
@@ -385,191 +386,134 @@ class SkoolScraper {
   async quickContentCheck() {
     try {
       const hasContent = await this.page.evaluate(() => {
-        // First, specifically check the TipTap editor
         const editorEl = document.querySelector(".tiptap.ProseMirror.skool-editor2");
         
         if (editorEl) {
-          // Get all paragraphs and check for meaningful content
-          const paragraphs = editorEl.querySelectorAll('p');
-          let meaningfulTextFound = false;
-          
-          for (let p of paragraphs) {
-            const text = p.innerText?.trim();
-            // Skip paragraphs that are empty or only contain line breaks
-            if (text && text.length > 3 && !text.match(/^\s*$/)) {
-              meaningfulTextFound = true;
-              break;
-            }
-          }
-          
-          if (meaningfulTextFound) {
-            return true;
-          }
-          
-          // Also check for images or other media content
-          const hasImages = editorEl.querySelector('img');
-          const hasLinks = editorEl.querySelector('a');
-          if (hasImages || hasLinks) {
-            return true;
-          }
-          
-          // Fallback: check total text content excluding line breaks
-          const totalText = editorEl.innerText?.replace(/\s+/g, ' ').trim();
-          if (totalText && totalText.length > 10) {
-            return true;
+          const htmlContent = editorEl.innerHTML;
+          // Quick check: if there's substantial HTML content, assume it has content
+          if (htmlContent && htmlContent.length > 50) {
+            // Check if it's not just empty paragraphs and breaks
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = htmlContent;
+            const textContent = tempDiv.textContent || tempDiv.innerText || '';
+            const cleanText = textContent.replace(/\s+/g, ' ').trim();
+            
+            return cleanText.length > 10;
           }
         }
-
-        // Fallback to other content containers
-        const contentSelectors = [
-          ".styled__EditorContentWrapper-sc-1cnx5by-2", 
-          ".styled__RichTextEditorWrapper-sc-1cnx5by-0",
-          ".styled__ModuleBody-sc-cgnv0g-3"
-        ];
-
-        for (let selector of contentSelectors) {
-          const element = document.querySelector(selector);
-          if (element) {
-            const textContent = element.innerText?.replace(/\s+/g, ' ').trim();
-            if (textContent && textContent.length > 10) {
-              return true;
-            }
-          }
-        }
-
+        
         return false;
       });
 
       return hasContent;
     } catch (error) {
-      // If there's an error checking, assume there might be content
       console.log('Error in quickContentCheck, assuming content exists:', error.message);
       return true;
     }
   }
 
-  // Simplified text extraction method
+  // Extract raw HTML and convert to clean text using cheerio
   async extractTextContent() {
     try {
-      // Look for the rich text editor content first
-      let extractedContent = await this.page.evaluate(() => {
+      // Get the raw HTML content from the TipTap editor
+      const htmlContent = await this.page.evaluate(() => {
         const editorEl = document.querySelector(".tiptap.ProseMirror.skool-editor2");
-
-        function extractContentFromTipTap(element) {
-          if (!element) return null;
-
-          const results = {
-            paragraphs: [],
-            images: [],
-            links: [],
-            textContent: ""
-          };
-
-          // Extract paragraphs with meaningful content
-          const paragraphs = element.querySelectorAll('p');
-          paragraphs.forEach(p => {
-            const text = p.innerText?.trim();
-            // Skip empty paragraphs and those with only line breaks
-            if (text && text.length > 0 && !text.match(/^\s*$/) && !text.match(/^[\r\n\s]*$/)) {
-              results.paragraphs.push(text);
-            }
-          });
-
-          // Extract images
-          const images = element.querySelectorAll('img');
-          images.forEach(img => {
-            results.images.push({
-              src: img.src || img.getAttribute('originalsrc'),
-              alt: img.alt,
-              title: img.title,
-              id: img.id
-            });
-          });
-
-          // Extract links
-          const links = element.querySelectorAll('a');
-          links.forEach(link => {
-            const text = link.innerText?.trim();
-            if (text && link.href) {
-              results.links.push({
-                text: text,
-                href: link.href,
-                title: link.title
-              });
-            }
-          });
-
-          // Create clean text content
-          if (results.paragraphs.length > 0) {
-            results.textContent = results.paragraphs.join('\n\n');
-          } else {
-            // Fallback: get all text and clean it
-            const clone = element.cloneNode(true);
-            const scriptsAndStyles = clone.querySelectorAll("script, style, svg");
-            scriptsAndStyles.forEach((el) => el.remove());
-            
-            // Remove ProseMirror trailing breaks which are just visual
-            const trailingBreaks = clone.querySelectorAll('br.ProseMirror-trailingBreak');
-            trailingBreaks.forEach(br => br.remove());
-            
-            results.textContent = clone.innerText?.replace(/\s+/g, ' ').trim() || '';
-          }
-
-          // Add image information to text content
-          if (results.images.length > 0) {
-            const imageDescriptions = results.images.map(img => 
-              `[Image: ${img.alt || img.title || 'Untitled'} - ${img.src}]`
-            ).join('\n');
-            
-            if (results.textContent) {
-              results.textContent = results.textContent + '\n\n' + imageDescriptions;
-            } else {
-              results.textContent = imageDescriptions;
-            }
-          }
-
-          return results.textContent;
-        }
-
+        
         if (editorEl) {
-          return extractContentFromTipTap(editorEl);
+          return editorEl.innerHTML;
+        }
+        
+        // Fallback to other content containers
+        const contentSelectors = [
+          ".styled__EditorContentWrapper-sc-1cnx5by-2",
+          ".styled__RichTextEditorWrapper-sc-1cnx5by-0", 
+          ".styled__ModuleBody-sc-cgnv0g-3",
+          '[data-testid*="content"]',
+          ".content",
+          "main",
+          ".main-content"
+        ];
+
+        for (let selector of contentSelectors) {
+          const element = document.querySelector(selector);
+          if (element) {
+            return element.innerHTML;
+          }
         }
 
         return null;
       });
 
-      // If no editor content found, try fallback selectors
-      if (!extractedContent || extractedContent.trim().length === 0) {
-        extractedContent = await this.page.evaluate(() => {
-          const contentSelectors = [
-            ".styled__EditorContentWrapper-sc-1cnx5by-2",
-            ".styled__RichTextEditorWrapper-sc-1cnx5by-0",
-            ".styled__ModuleBody-sc-cgnv0g-3",
-            '[data-testid*="content"]',
-            ".content",
-            "main",
-            ".main-content",
-          ];
-
-          for (let selector of contentSelectors) {
-            const element = document.querySelector(selector);
-            if (element) {
-              const clone = element.cloneNode(true);
-              const scriptsAndStyles = clone.querySelectorAll("script, style, svg");
-              scriptsAndStyles.forEach((el) => el.remove());
-              
-              const textContent = clone.innerText?.replace(/\s+/g, ' ').trim();
-              if (textContent && textContent.length > 10) {
-                return textContent;
-              }
-            }
-          }
-
-          return null;
-        });
+      if (!htmlContent) {
+        return "No content found";
       }
 
-      return extractedContent || "No content found";
+      // Use cheerio to parse HTML and extract clean text
+      const $ = cheerio.load(htmlContent);
+      
+      // Remove script and style elements
+      $('script, style, svg').remove();
+      
+      // Remove ProseMirror specific elements that don't contain content
+      $('br.ProseMirror-trailingBreak').remove();
+      
+      // Extract text content with some formatting
+      let extractedText = '';
+      const textParts = [];
+      
+      // Extract paragraphs
+      $('p').each((i, elem) => {
+        const text = $(elem).text().trim();
+        if (text && text.length > 0) {
+          textParts.push(text);
+        }
+      });
+      
+      // If we found paragraphs, use them
+      if (textParts.length > 0) {
+        extractedText = textParts.join('\n\n');
+      } else {
+        // Fallback: get all text content
+        extractedText = $.text().replace(/\s+/g, ' ').trim();
+      }
+      
+      // Extract images and add their information
+      const images = [];
+      $('img').each((i, elem) => {
+        const $img = $(elem);
+        const src = $img.attr('src') || $img.attr('originalsrc');
+        const alt = $img.attr('alt') || $img.attr('title') || 'Image';
+        
+        if (src) {
+          images.push(`[Image: ${alt} - ${src}]`);
+        }
+      });
+      
+      // Extract links information  
+      const links = [];
+      $('a').each((i, elem) => {
+        const $link = $(elem);
+        const href = $link.attr('href');
+        const text = $link.text().trim();
+        
+        if (href && text) {
+          links.push(`[Link: ${text} - ${href}]`);
+        }
+      });
+      
+      // Combine everything
+      let finalContent = extractedText;
+      
+      if (images.length > 0) {
+        finalContent += '\n\n' + images.join('\n');
+      }
+      
+      if (links.length > 0) {
+        finalContent += '\n\n' + links.join('\n'); 
+      }
+      
+      return finalContent || "No meaningful content found";
+      
     } catch (error) {
       console.log("Error extracting content:", error.message);
       return "Error extracting content";
