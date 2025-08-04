@@ -312,13 +312,21 @@ class SkoolScraper {
             continue;
           }
 
-          // Navigate directly to the module
+          // Navigate directly to the module with shorter timeout
           await this.page.goto(moduleUrl, {
             waitUntil: "networkidle2",
             timeout: 8000,
           });
 
-          await this.delay(300);
+          // Quick content check - if no content found quickly, skip waiting
+          const hasContent = await this.quickContentCheck();
+          
+          if (hasContent) {
+            // Give a bit more time for content to fully load
+            await this.delay(300);
+          } else {
+            console.log(`⚠ No content detected for ${module.title}, skipping extended wait`);
+          }
 
           // Extract content from this module
           const scrapedContent = await this.extractTextContent();
@@ -340,11 +348,15 @@ class SkoolScraper {
           if (error.message === 'Migration in progress') {
             throw error; // Re-throw migration errors
           }
-          console.error(`Error processing module ${i + 1}:`, error.message);
           
-          // Still add error info to the structure
-          const module = allModules[i];
-          courseStructure.sections[module.sectionIndex].childrenCourses[module.moduleIndex].content = `Error scraping content: ${error.message}`;
+          // Handle timeout specifically
+          if (error.name === 'TimeoutError' || error.message.includes('timeout')) {
+            console.log(`⏱ Timeout for module: ${module.title}, marking as no content`);
+            courseStructure.sections[module.sectionIndex].childrenCourses[module.moduleIndex].content = "No content found - page timeout";
+          } else {
+            console.error(`Error processing module ${i + 1}:`, error.message);
+            courseStructure.sections[module.sectionIndex].childrenCourses[module.moduleIndex].content = `Error scraping content: ${error.message}`;
+          }
         }
       }
 
@@ -352,6 +364,37 @@ class SkoolScraper {
     } catch (error) {
       console.error("Error in direct ID scraping:", error.message);
       throw error;
+    }
+  }
+
+  // Quick check to see if content is available without full extraction
+  async quickContentCheck() {
+    try {
+      const hasContent = await this.page.evaluate(() => {
+        // Check for main content containers
+        const contentSelectors = [
+          ".tiptap.ProseMirror.skool-editor2",
+          ".styled__EditorContentWrapper-sc-1cnx5by-2",
+          ".styled__RichTextEditorWrapper-sc-1cnx5by-0",
+          ".styled__ModuleBody-sc-cgnv0g-3"
+        ];
+
+        for (let selector of contentSelectors) {
+          const element = document.querySelector(selector);
+          if (element) {
+            const textContent = element.innerText?.trim();
+            if (textContent && textContent.length > 20) {
+              return true;
+            }
+          }
+        }
+        return false;
+      });
+
+      return hasContent;
+    } catch (error) {
+      // If there's an error checking, assume there might be content
+      return true;
     }
   }
 
