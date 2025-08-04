@@ -315,7 +315,7 @@ class SkoolScraper {
           // Navigate directly to the module
           await this.page.goto(moduleUrl, {
             waitUntil: "networkidle2",
-            timeout: 30000,
+            timeout: 8000,
           });
 
           await this.delay(300);
