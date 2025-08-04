@@ -325,7 +325,7 @@ class SkoolScraper {
           
           if (hasContent) {
             // Give a bit more time for content to fully load
-            await this.delay(300);
+            await this.delay(3000);
           } else {
             console.log(`⚠ No content detected for ${module.title}, skipping extended wait`);
           }
@@ -421,11 +421,11 @@ class SkoolScraper {
           return true;
         }
 
-        // Final check: look for any images or videos which might indicate content
-        const hasMedia = document.querySelector('img, video, iframe');
-        if (hasMedia) {
-          return true;
-        }
+        // // Final check: look for any images or videos which might indicate content
+        // const hasMedia = document.querySelector('img, video, iframe');
+        // if (hasMedia) {
+        //   return true;
+        // }
 
         return false;
       });
