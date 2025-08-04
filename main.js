@@ -326,7 +326,7 @@ class SkoolScraper {
           
           if (hasContent) {
             // Give a bit more time for content to fully load
-            await this.delay(300);
+            await this.delay(500);
           } else {
             console.log(`⚠ No content detected for ${module.title}, skipping extended wait`);
           }
@@ -536,8 +536,12 @@ class SkoolScraper {
 }
 
 Actor.main(async () => {
-  const input = await Actor.getInput();
-  
+  // const input = await Actor.getInput();
+    input ={
+    email:"Ohb@mail.com",
+    password:"riskec-buGpok-fonme0",
+    classroomUrl:"https://www.skool.com/7-figure-accelerator-by-philip-9912/classroom/0b296296?md=6f6efb25101f4066be31f70ac06c9e90"
+  }
   // Validate input
   if (!input.email || !input.password || !input.classroomUrl) {
     throw new Error('Missing required input parameters: email, password, and classroomUrl');
