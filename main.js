@@ -318,7 +318,7 @@ class SkoolScraper {
           // Navigate directly to the module with shorter timeout
           await this.page.goto(moduleUrl, {
             waitUntil: "networkidle2",
-            timeout: 50000,
+            timeout: 20000,
           });
 
           // Quick content check - if no content found quickly, skip waiting
@@ -326,7 +326,7 @@ class SkoolScraper {
           
           // if (hasContent) {
             // Give a bit more time for content to fully load
-            await this.delay(500);
+            await this.delay(1000);
           // } else {
           //   console.log(`⚠ No content detected for ${module.title}, skipping extended wait`);
           // }
