@@ -121,7 +121,7 @@ class SkoolScraper {
       console.log("Navigating to login page...");
       await this.page.goto("https://www.skool.com/login", {
         waitUntil: "networkidle2",
-        timeout: 30000,
+        timeout: 20000,
       });
 
       // Check for migration during navigation
@@ -132,7 +132,7 @@ class SkoolScraper {
 
       // Wait for login form
       await this.page.waitForSelector('input[type="email"]', {
-        timeout: 10000,
+        timeout: 8000,
       });
 
       // Fill login credentials
@@ -322,18 +322,23 @@ class SkoolScraper {
           });
 
           // Quick content check - if no content found quickly, skip waiting
-          const hasContent = await this.quickContentCheck();
+          // const hasContent = await this.quickContentCheck();
           
-          if (hasContent) {
+          // if (hasContent) {
             // Give a bit more time for content to fully load
-            await this.delay(500);
-          } else {
-            console.log(`⚠ No content detected for ${module.title}, skipping extended wait`);
-          }
+            await this.delay(1000);
+          // } else {
+          //   console.log(`⚠ No content detected for ${module.title}, skipping extended wait`);
+          // }
 
           // Extract content from this module
           const scrapedContent = await this.extractTextContent();
-
+          // const options = {
+          //   wordwrap: null,
+          //   // ...
+          // };
+          // const text = htmlToText(scrapedContent, options);
+          // console.log(text,"text");
           // Add the content directly to the course structure
           courseStructure.sections[module.sectionIndex].childrenCourses[module.moduleIndex].content = scrapedContent;
 
@@ -394,7 +399,7 @@ class SkoolScraper {
   async quickContentCheck() {
     try {
       const hasContent = await this.page.evaluate(() => {
-        const editorEl = document.querySelector(".tiptap.ProseMirror.skool-editor2");
+        const editorEl = document.querySelector(".styled__EditorContentWrapper-sc-1cnx5by-2.bXbSDs");
         
         if (editorEl) {
           const htmlContent = editorEl.innerHTML;
@@ -424,30 +429,30 @@ class SkoolScraper {
   async extractTextContent() {
     try {
       // Get the raw HTML content from the TipTap editor
-      const htmlContent = await this.page.evaluate(() => {
-        const editorEl = document.querySelector(".styled__EditorContentWrapper-sc-1cnx5by-2");
+      const htmlContent = await this.page.evaluate(async () => {
+        const editorEl = await document.querySelector(".tiptap.ProseMirror.skool-editor2");
         
-        if (editorEl) {
+        if (editorEl) {          
           return editorEl.innerHTML;
         }
         
-        // Fallback to other content containers
-        const contentSelectors = [
-          ".styled__EditorContentWrapper-sc-1cnx5by-2",
-          ".styled__RichTextEditorWrapper-sc-1cnx5by-0", 
-          ".styled__ModuleBody-sc-cgnv0g-3",
-          '[data-testid*="content"]',
-          ".content",
-          "main",
-          ".main-content"
-        ];
+        // // Fallback to other content containers
+        // const contentSelectors = [
+        //   ".styled__EditorContentWrapper-sc-1cnx5by-2",
+        //   ".styled__RichTextEditorWrapper-sc-1cnx5by-0", 
+        //   ".styled__ModuleBody-sc-cgnv0g-3",
+        //   '[data-testid*="content"]',
+        //   ".content",
+        //   "main",
+        //   ".main-content"
+        // ];
 
-        for (let selector of contentSelectors) {
-          const element = document.querySelector(selector);
-          if (element) {
-            return element.innerHTML;
-          }
-        }
+        // for (let selector of contentSelectors) {
+        //   const element = document.querySelector(selector);
+        //   if (element) {
+        //     return element.innerHTML;
+        //   }
+        // }
 
         return null;
       });
@@ -519,6 +524,7 @@ class SkoolScraper {
       if (links.length > 0) {
         finalContent += '\n\n' + links.join('\n'); 
       }
+      // console.log(finalContent);
       
       return finalContent || "No meaningful content found";
       
@@ -527,6 +533,239 @@ class SkoolScraper {
       return "Error extracting content";
     }
   }
+
+  // // Generate Excel file from course structure
+  // async generateExcelFile(courseStructure, flattenedData) {
+  //   try {
+  //     console.log("Generating Excel file...");
+
+  //     // Create a new workbook
+  //     const workbook = XLSX.utils.book_new();
+
+  //     // 1. Overview sheet with summary information
+  //     const overviewData = [
+  //       ["Course Structure Overview", ""],
+  //       ["", ""],
+  //       ["Total Sections", courseStructure.sections.length],
+  //       ["Total Modules", flattenedData.length],
+  //       ["Generated At", new Date().toISOString()],
+  //       ["", ""],
+  //       ["Section", "Module Count"],
+  //     ];
+
+  //     courseStructure.sections.forEach(section => {
+  //       overviewData.push([section.courseTitle, section.childrenCourses.length]);
+  //     });
+
+  //     const overviewSheet = XLSX.utils.aoa_to_sheet(overviewData);
+  //     XLSX.utils.book_append_sheet(workbook, overviewSheet, "Overview");
+
+  //     // 2. Detailed modules sheet (flattened data) with content
+  //     const modulesData = [
+  //       ["Section Title", "Module Title", "Module ID", "Video Link", "Content Length", "Has Content", "Course Content", "Scraped At"]
+  //     ];
+
+  //     flattenedData.forEach(item => {
+  //       const contentLength = item.content ? item.content.length : 0;
+  //       const hasContent = item.content && 
+  //         item.content !== "No content scraped" && 
+  //         !item.content.startsWith("Error scraping content") && 
+  //         item.content !== "No content found";
+
+  //       // Prepare content for Excel (handle cell limits)
+  //       let content = item.content || "";
+  //       if (content.length > 32000) {
+  //         content = content.substring(0, 32000) + "... [Content truncated due to Excel cell limit]";
+  //       }
+
+  //       modulesData.push([
+  //         item.courseTitle,
+  //         item.moduleTitle,
+  //         item.moduleId,
+  //         item.videoLink || "",
+  //         contentLength,
+  //         hasContent ? "Yes" : "No",
+  //         content,
+  //         item.scrapedAt
+  //       ]);
+  //     });
+
+  //     const modulesSheet = XLSX.utils.aoa_to_sheet(modulesData);
+  //     XLSX.utils.book_append_sheet(workbook, modulesSheet, "Modules");
+
+  //     // 3. Full content sheet (with actual content text)
+  //     const contentData = [
+  //       ["Section", "Module", "Module ID", "Video Link", "Full Content"]
+  //     ];
+
+  //     flattenedData.forEach(item => {
+  //       // Truncate content if it's too long for Excel (Excel has cell limits)
+  //       let content = item.content || "";
+  //       if (content.length > 32000) {
+  //         content = content.substring(0, 32000) + "... [Content truncated due to Excel cell limit]";
+  //       }
+
+  //       contentData.push([
+  //         item.courseTitle,
+  //         item.moduleTitle,
+  //         item.moduleId,
+  //         item.videoLink || "",
+  //         content
+  //       ]);
+  //     });
+
+  //     const contentSheet = XLSX.utils.aoa_to_sheet(contentData);
+  //     XLSX.utils.book_append_sheet(workbook, contentSheet, "Full Content");
+
+  //     // 4. Raw structure sheet (hierarchical view) with content
+  //     const structureData = [
+  //       ["Level", "Type", "Title", "ID", "Video Link", "Course Content", "Content Length"]
+  //     ];
+
+  //     courseStructure.sections.forEach(section => {
+  //       structureData.push([
+  //         1, 
+  //         "Section", 
+  //         section.courseTitle, 
+  //         "", 
+  //         "", 
+  //         "",
+  //         ""
+  //       ]);
+
+  //       section.childrenCourses.forEach(module => {
+  //         // Prepare content for Excel (handle cell limits)
+  //         let content = module.content || "No content";
+  //         let originalLength = content.length;
+          
+  //         if (content.length > 32000) {
+  //           content = content.substring(0, 32000) + "... [Content truncated due to Excel cell limit]";
+  //         }
+
+  //         structureData.push([
+  //           2,
+  //           "Module",
+  //           module.title,
+  //           module.Id || "",
+  //           module.videoLink || "",
+  //           content,
+  //           originalLength
+  //         ]);
+  //       });
+  //     });
+
+  //     const structureSheet = XLSX.utils.aoa_to_sheet(structureData);
+  //     XLSX.utils.book_append_sheet(workbook, structureSheet, "Course Structure");
+
+  //     // 5. Statistics sheet
+  //     const stats = this.calculateStatistics(flattenedData);
+  //     const statsData = [
+  //       ["Scraping Statistics", ""],
+  //       ["", ""],
+  //       ["Total Modules", stats.totalModules],
+  //       ["Modules with Content", stats.modulesWithContent],
+  //       ["Modules with Errors", stats.modulesWithErrors],
+  //       ["Modules without Content", stats.modulesWithoutContent],
+  //       ["Success Rate", stats.successRate + "%"],
+  //       ["", ""],
+  //       ["Content Statistics", ""],
+  //       ["Average Content Length", stats.avgContentLength + " characters"],
+  //       ["Longest Content", stats.maxContentLength + " characters"],
+  //       ["Shortest Content", stats.minContentLength + " characters"],
+  //       ["", ""],
+  //       ["Modules with Video Links", stats.modulesWithVideoLinks],
+  //       ["Video Link Rate", stats.videoLinkRate + "%"]
+  //     ];
+
+  //     const statsSheet = XLSX.utils.aoa_to_sheet(statsData);
+  //     XLSX.utils.book_append_sheet(workbook, statsSheet, "Statistics");
+
+  //     // Generate timestamp for filename
+  //     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  //     const filename = `course_structure_${timestamp}.xlsx`;
+
+  //     // Set column widths for better readability
+  //     const setColumnWidths = (sheet, widths) => {
+  //       if (!sheet['!cols']) sheet['!cols'] = [];
+  //       widths.forEach((width, index) => {
+  //         sheet['!cols'][index] = { wch: width };
+  //       });
+  //     };
+
+  //     // Set appropriate column widths for each sheet
+  //     setColumnWidths(overviewSheet, [25, 15]); // Overview sheet
+  //     setColumnWidths(modulesSheet, [20, 30, 25, 30, 12, 12, 50, 20]); // Modules sheet
+  //     setColumnWidths(contentSheet, [20, 30, 25, 30, 100]); // Full Content sheet
+  //     setColumnWidths(structureSheet, [8, 10, 30, 25, 30, 80, 15]); // Course Structure sheet
+  //     setColumnWidths(statsSheet, [25, 15]); // Statistics sheet
+
+  //     // Write the file
+  //     const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+      
+  //     // Save to Actor key-value store
+  //     await Actor.setValue(filename, buffer, { contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      
+  //     console.log(`✅ Excel file generated: ${filename}`);
+      
+  //     return {
+  //       filename: filename,
+  //       sheets: ['Overview', 'Modules', 'Full Content', 'Course Structure', 'Statistics'],
+  //       totalRows: modulesData.length - 1, // Subtract header row
+  //       statistics: stats
+  //     };
+
+  //   } catch (error) {
+  //     console.error("Error generating Excel file:", error.message);
+  //     throw error;
+  //   }
+  // }
+
+  // // Calculate statistics for the scraped data
+  // calculateStatistics(flattenedData) {
+  //   const totalModules = flattenedData.length;
+    
+  //   const modulesWithContent = flattenedData.filter(item => 
+  //     item.content && 
+  //     item.content !== "No content scraped" && 
+  //     !item.content.startsWith("Error scraping content") &&
+  //     item.content !== "No content found" &&
+  //     item.content !== "No content found - page timeout"
+  //   ).length;
+
+  //   const modulesWithErrors = flattenedData.filter(item => 
+  //     item.content && item.content.startsWith("Error scraping content")
+  //   ).length;
+
+  //   const modulesWithoutContent = totalModules - modulesWithContent - modulesWithErrors;
+
+  //   const successRate = totalModules > 0 ? Math.round((modulesWithContent / totalModules) * 100) : 0;
+
+  //   const contentLengths = flattenedData
+  //     .filter(item => item.content && typeof item.content === 'string')
+  //     .map(item => item.content.length);
+    
+  //   const avgContentLength = contentLengths.length > 0 ? 
+  //     Math.round(contentLengths.reduce((a, b) => a + b, 0) / contentLengths.length) : 0;
+    
+  //   const maxContentLength = contentLengths.length > 0 ? Math.max(...contentLengths) : 0;
+  //   const minContentLength = contentLengths.length > 0 ? Math.min(...contentLengths) : 0;
+
+  //   const modulesWithVideoLinks = flattenedData.filter(item => item.videoLink && item.videoLink.trim()).length;
+  //   const videoLinkRate = totalModules > 0 ? Math.round((modulesWithVideoLinks / totalModules) * 100) : 0;
+
+  //   return {
+  //     totalModules,
+  //     modulesWithContent,
+  //     modulesWithErrors,
+  //     modulesWithoutContent,
+  //     successRate,
+  //     avgContentLength,
+  //     maxContentLength,
+  //     minContentLength,
+  //     modulesWithVideoLinks,
+  //     videoLinkRate
+  //   };
+  // }
 
   async close() {
     if (this.browser) {
@@ -593,12 +832,17 @@ Actor.main(async () => {
       });
     });
 
+    // // Generate Excel file
+    // console.log("Generating Excel file for course structure...");
+    // const excelResult = await scraper.generateExcelFile(courseStructure, flattenedData);
+
     const result = {
       type: 'direct_id_scraping',
       totalSections: courseStructure.sections.length,
       totalModules: flattenedData.length,
       data: flattenedData,
-      rawStructure: courseStructure
+      rawStructure: courseStructure,
+      // excelFile: excelResult // Add Excel file info to result
     };
 
     // Mark as completed
@@ -631,6 +875,12 @@ Actor.main(async () => {
       item.content && item.content.startsWith("Error scraping content")
     ).length;
     console.log(`Modules with errors: ${modulesWithErrors}`);
+
+    // // Log Excel file generation result
+    // console.log('=== EXCEL FILE GENERATED ===');
+    // console.log(`File: ${excelResult.filename}`);
+    // console.log(`Sheets: ${excelResult.sheets.join(', ')}`);
+    // console.log(`Success Rate: ${excelResult.statistics.successRate}%`);
 
   } catch (error) {
     if (error.message === 'Migration in progress') {
