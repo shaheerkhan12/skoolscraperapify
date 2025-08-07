@@ -326,7 +326,7 @@ class SkoolScraper {
           
           // if (hasContent) {
             // Give a bit more time for content to fully load
-            await this.delay(1000);
+            await this.delay(500);
           // } else {
           //   console.log(`⚠ No content detected for ${module.title}, skipping extended wait`);
           // }
